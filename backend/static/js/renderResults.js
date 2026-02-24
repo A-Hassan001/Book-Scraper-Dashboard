@@ -111,7 +111,7 @@ function toggleGroup(group, groupId, header) {
             <!-- Item number -->
             <div>
                 ${index + 1}.
-            </div>z
+            </div>
 
             <!-- Book image -->
             <img src="${item.image || '/static/images/no-book.png'}" alt="${item.name || 'Book image'}"
