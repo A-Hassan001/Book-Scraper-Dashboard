@@ -20,7 +20,7 @@ class DetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Detail
-        fields = ['image', 'isbn', 'name', 'price', 'condition','seller','url', 'date_scraped']
+        fields = ['image', 'isbn', 'name', 'price', 'condition','seller','url', 'date_scraped', 'first_seen']
 
     def get_image(self, obj):
         # Only return the first image URL
