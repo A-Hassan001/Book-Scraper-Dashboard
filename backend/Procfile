@@ -1,1 +1,1 @@
-web: gunicorn backend.wsgi --chdir backend
+python books_scraper/main.py
