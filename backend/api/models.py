@@ -46,8 +46,28 @@
 #
 #     def __str__(self):
 #         return self.name
-
+import json
 from django.db import models
+
+
+class SafeJSONField(models.JSONField):
+    """
+    JSONField that safely handles both string and already-deserialized values
+    from the database.
+    """
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return None
+        # If the database driver already gave us a Python object, use it directly.
+        if not isinstance(value, (str, bytes)):
+            return value
+        # Otherwise, parse the JSON string.
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            # Fallback to an empty list if the string is not valid JSON.
+            # Adjust as needed for your data (maybe return [] or {}).
+            return []
 
 class Source(models.Model):
     spider_id = models.AutoField(primary_key=True)
@@ -93,13 +113,14 @@ class Detail(models.Model):
     )
     isbn = models.CharField(max_length=255)
     date_scraped = models.DateField(auto_now_add=True)
+    first_seen = models.DateField(null=True, blank=True)
     site_id = models.IntegerField(null=True, blank=True)  # optional
     name = models.TextField()
     price = models.FloatField()
     seller = models.TextField()
     condition = models.TextField()
     editorial = models.TextField()
-    images = models.JSONField(default=list, blank=True)  # default empty list
+    images = SafeJSONField()
     url = models.TextField(unique=True)
     availability = models.BooleanField(default=True)
 
@@ -107,4 +128,6 @@ class Detail(models.Model):
         db_table = "details_table"
 
     def __str__(self):
+        return self.name
+
         return self.name
