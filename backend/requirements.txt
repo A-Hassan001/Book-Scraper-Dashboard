@@ -1,7 +1,6 @@
 django-cors-headers==4.7.0
 dj-database-url==2.3.0
 Django==5.1.4
-psycopg[binary]==3.2.4
 djangorestframework==3.15.2
 itemadapter==0.10.0
 python-dotenv==1.2.1
@@ -13,6 +12,7 @@ whitenoise==6.11.0
 psycopg2-binary==2.9.11
 scrapeops_scrapy_proxy_sdk==1.0
 python-dateutil==2.9.0.post0
+
 
 
 
