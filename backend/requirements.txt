@@ -12,6 +12,7 @@ gunicorn==25.1.0
 whitenoise==6.11.0
 psycopg2-binary==2.9.11
 scrapeops_scrapy_proxy_sdk==1.0
+python-dateutil==2.9.0.post0
 
 
 
