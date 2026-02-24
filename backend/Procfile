@@ -1,1 +1,1 @@
-python books_scraper/main.py
+worker: python books_scraper/main.py
