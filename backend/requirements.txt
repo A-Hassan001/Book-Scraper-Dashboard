@@ -10,6 +10,8 @@ Scrapy==2.12.0
 SQLAlchemy==2.0.38
 gunicorn==25.1.0
 whitenoise==6.11.0
+psycopg2-binary
+
 
 
 
