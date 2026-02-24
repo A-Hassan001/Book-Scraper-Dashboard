@@ -1,6 +1,8 @@
-import json
 import os
+import json
 from typing import Any
+from pathlib import Path
+from dotenv import load_dotenv
 from datetime import date, timedelta
 from collections import OrderedDict
 
@@ -9,21 +11,20 @@ from sqlalchemy import create_engine, select, update, func, delete
 
 from .models import Base, Source, History, Detail
 
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BASE_DIR / ".env")
+
+
 class DatabaseManager:
     def __init__(self, db_path=None, **kwargs):
         super().__init__(**kwargs)
 
-        db_path = "postgresql+psycopg2://postgres:1234@127.0.0.1:5432/books_db"
+        # db_path = "postgresql+psycopg2://postgres:1234@127.0.0.1:5432/books_db"
+        db_path = os.environ.get("DATABASE_URL")
 
-        self.engine = create_engine(
-            db_path,
-            echo=False,
-            future=True,
-            json_serializer=lambda obj: json.dumps(obj)
-        )
-
+        self.engine = create_engine(db_path, echo=False, future=True, json_serializer=lambda obj: json.dumps(obj))
         Base.metadata.create_all(self.engine)
-
         Session = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
         self.session = Session()
 
