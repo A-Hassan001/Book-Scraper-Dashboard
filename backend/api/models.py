@@ -113,7 +113,7 @@ class Detail(models.Model):
     )
     isbn = models.CharField(max_length=255)
     date_scraped = models.DateField(auto_now_add=True)
-    first_seen = models.DateField(null=True, blank=True)
+    first_seen = models.DateField(auto_now_add=True)
     site_id = models.IntegerField(null=True, blank=True)  # optional
     name = models.TextField()
     price = models.FloatField()
