@@ -122,7 +122,7 @@ function toggleGroup(group, groupId, header) {
                 <strong class="text-dark">${item.name || 'Untitled'}</strong><br>
                 <small class="text-muted"> ${item.seller} | ${item.condition} | ${item.isbn} </small><br>
                 <small class="text-muted">
-                Scraped Date: ${item.first_seen || 'N/A'} | Last seen: ${item.date_scraped || 'N/A'}
+                First Scraped at: ${item.first_seen || 'N/A'}  |  Updated Scraped at: ${item.date_scraped || 'N/A'}
                 </small>
             </div>
 
