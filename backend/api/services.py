@@ -43,7 +43,7 @@ def get_details(request: Request):
         else:
             detail = detail.filter(date_scraped__gte=cutoff_date)
 
-    print("days_old:", request.GET.get('days_old'))
+    # print("days_old:", request.GET.get('days_old'))
     # print(detail.query)
     # print(f'\nTotal results agsinst filter: {detail.count()} / Date results: {detail}\n\n')
     return detail, history
