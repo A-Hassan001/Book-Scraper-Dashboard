@@ -1,8 +1,12 @@
 from django.urls import path
 from django.contrib import admin
+from django.shortcuts import redirect
 
 from .views import market_place_names, conditions_of_books, main_stats, price_range_of_books, all_filtered_results, dashboard_view
 
+
+def home(request):
+    return redirect('dashboard/')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
