@@ -148,22 +148,19 @@ def main_stats(request):
             "Rotation Rate": "0 %", "Hot Books": 0, "Sold Books": 0,
         })
 
+
 @api_view(["GET"])
 def all_filtered_results(request):
-    """
-    Returns results grouped by 'isbn' (default) or 'seller'.
-    Optimized to use aggregation for per‑group stats.
-    """
     guard = require_login(request)
     if guard:
         return guard
 
     group_by = request.GET.get("group_by", "isbn")
-    detail, _ = get_details(request=request)          # filtered queryset
+    detail, _ = get_details(request=request)
     available_detail = detail.filter(availability=True)
 
     if group_by in ("seller", "isbn"):
-        # ----- 1. Pre‑compute aggregates for available books (single query) -----
+        # Pre‑compute aggregates for available books
         available_agg = available_detail.values(group_by).annotate(
             avg_price=Avg("price"),
             min_price=Min("price"),
@@ -172,23 +169,22 @@ def all_filtered_results(request):
         )
         agg_dict = {item[group_by]: item for item in available_agg}
 
-        # ----- 2. Pre‑compute sold counts per group (single query) -----
+        # Pre‑compute sold counts per group
         sold_agg = detail.filter(availability=False).values(group_by).annotate(
             sold_count=Count("detail_id")
         )
         sold_dict = {item[group_by]: item["sold_count"] for item in sold_agg}
 
-        # ----- 3. Group items (one loop, no extra queries) -----
+        # Group items
         grouped_data = defaultdict(list)
         for obj in available_detail:
             key = getattr(obj, group_by) or "unknown"
             grouped_data[key].append(obj)
 
-        # ----- 4. Build response using pre‑computed aggregates -----
         response = []
         for key, items in grouped_data.items():
             agg = agg_dict.get(key, {})
-            total_available = agg.get("available_count", len(items))   # fallback
+            total_available = agg.get("available_count", len(items))
             sold_count = sold_dict.get(key, 0)
 
             response.append({
@@ -204,72 +200,67 @@ def all_filtered_results(request):
 
         return Response(response)
 
-    # Fallback – no grouping
     return Response(DetailSerializer(detail, many=True).data)
+
 # @api_view(["GET"])
 # def all_filtered_results(request):
 #     """
 #     Returns results grouped by 'isbn' (default) or 'seller'.
-#
-#     Query params (all optional):
-#         group_by     — "isbn" | "seller"
-#         domains      — comma-separated marketplace names
-#         min_price    — float
-#         max_price    — float
-#         condition    — comma-separated condition strings, or "All"
-#         days_old     — integer
-#         interest     — "pending" | "interested" | "not_interested"
-#
-#     Each group entry contains:
-#         {group_by.capitalize(), Available Books, Books Sold,
-#          Average Rotation (%), Average Price, Minimum Price,
-#          Maximum Price, results: [DetailSerializer]}
+#     Optimized to use aggregation for per‑group stats.
 #     """
 #     guard = require_login(request)
 #     if guard:
 #         return guard
 #
 #     group_by = request.GET.get("group_by", "isbn")
-#     detail, _ = get_details(request=request)
+#     detail, _ = get_details(request=request)          # filtered queryset
 #     available_detail = detail.filter(availability=True)
 #
 #     if group_by in ("seller", "isbn"):
-#         # Group available books by key
+#         # ----- 1. Pre‑compute aggregates for available books (single query) -----
+#         available_agg = available_detail.values(group_by).annotate(
+#             avg_price=Avg("price"),
+#             min_price=Min("price"),
+#             max_price=Max("price"),
+#             available_count=Count("detail_id")
+#         )
+#         agg_dict = {item[group_by]: item for item in available_agg}
+#
+#         # ----- 2. Pre‑compute sold counts per group (single query) -----
+#         sold_agg = detail.filter(availability=False).values(group_by).annotate(
+#             sold_count=Count("detail_id")
+#         )
+#         sold_dict = {item[group_by]: item["sold_count"] for item in sold_agg}
+#
+#         # ----- 3. Group items (one loop, no extra queries) -----
 #         grouped_data = defaultdict(list)
 #         for obj in available_detail:
 #             key = getattr(obj, group_by) or "unknown"
 #             grouped_data[key].append(obj)
 #
-#         # Sold counts per key from the same filtered queryset
-#         sold_map  = detail.filter(availability=False).values(group_by).annotate(sold_count=Count("detail_id"))
-#         sold_dict = {entry[group_by]: entry["sold_count"] for entry in sold_map}
-#
+#         # ----- 4. Build response using pre‑computed aggregates -----
 #         response = []
 #         for key, items in grouped_data.items():
-#             agg = Detail.objects.filter(
-#                 detail_id__in=[obj.detail_id for obj in items]
-#             ).aggregate(avg_price=Avg("price"), min_price=Min("price"), max_price=Max("price"))
-#
-#             total_available = len(items)
-#             sold_count      = sold_dict.get(key, 0)
-#             avg_active      = total_available if total_available else 1
+#             agg = agg_dict.get(key, {})
+#             total_available = agg.get("available_count", len(items))   # fallback
+#             sold_count = sold_dict.get(key, 0)
 #
 #             response.append({
-#                 group_by.capitalize():  key,
-#                 "Available Books":      total_available,
-#                 "Books Sold":           sold_count,
-#                 "Average Rotation (%)": f"{round((sold_count / avg_active) * 100, 2)}%",
-#                 "Average Price":        round(agg.get("avg_price") or 0, 2),
-#                 "Minimum Price":        round(agg.get("min_price") or 0, 2),
-#                 "Maximum Price":        round(agg.get("max_price") or 0, 2),
-#                 "results":              DetailSerializer(items, many=True).data,
+#                 group_by.capitalize(): key,
+#                 "Available Books": total_available,
+#                 "Books Sold": sold_count,
+#                 "Average Rotation (%)": f"{round((sold_count / (total_available or 1)) * 100, 2)}%",
+#                 "Average Price": round(agg.get("avg_price") or 0, 2),
+#                 "Minimum Price": round(agg.get("min_price") or 0, 2),
+#                 "Maximum Price": round(agg.get("max_price") or 0, 2),
+#                 "results": DetailSerializer(items, many=True).data,
 #             })
 #
 #         return Response(response)
 #
-#     # Fallback: return flat list (no group_by match)
+#     # Fallback – no grouping
 #     return Response(DetailSerializer(detail, many=True).data)
-#
+
 
 # ─────────────────────────────────────────────────────────────
 # Interest flag endpoint

@@ -1,12 +1,6 @@
 /**
- * renderResults.js – pure rendering of grouped results with interest & contact buttons.
+ * renderResults.js – renders grouped results with star and dislike buttons.
  */
-
-const INTEREST_ICON = {
-    pending:        { html: '☆', title: 'Mark as Interested',    cls: 'interest-pending' },
-    interested:     { html: '★', title: 'Mark as Not Interested', cls: 'interest-interested' },
-    not_interested: { html: '✕', title: 'Reset to Pending',       cls: 'interest-not-interested' },
-};
 
 export function renderResults(data) {
     const container = document.getElementById('resultsContainer');
@@ -92,28 +86,41 @@ function renderItems(items) {
 
     return items.map((item, index) => {
         const interest = item.interest || 'pending';
-        const cfg      = INTEREST_ICON[interest] ?? INTEREST_ICON.pending;
-        const contact  = item.contact === true;
-        const contactIcon = contact ? '📞' : '✆';
+        const contact = item.contact === true;
+
+        // Star icon
+        const starIcon = interest === 'interested' ? '★' : '☆';
+        const starClass = interest === 'interested' ? 'star-filled' : 'star-outline';
+
+        // Not Interested button state
+        const dislikeClass = interest === 'not_interested' ? 'not-interested-active' : 'not-interested-inactive';
 
         return `
             <a href="${escHtml(item.url || '#')}" target="_blank" rel="noopener noreferrer"
                class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-decoration-none">
 
-                <!-- Interest button (no inline onclick) -->
-                <button class="interest-btn ${cfg.cls}"
+                <!-- Star button -->
+                <button class="star-btn ${starClass}"
                         data-detail-id="${item.detail_id}"
                         data-interest="${interest}"
-                        title="${cfg.title}">
-                    ${cfg.html}
+                        title="${interest === 'interested' ? 'Mark as Not Interested' : 'Mark as Interested'}">
+                    ${starIcon}
                 </button>
 
-                <!-- Contact button (no inline onclick) -->
+                <!-- Not Interested button -->
+                <button class="not-interested-btn ${dislikeClass}"
+                        data-detail-id="${item.detail_id}"
+                        data-interest="${interest}"
+                        title="${interest === 'not_interested' ? 'Reset to Pending' : 'Mark as Not Interested'}">
+                    Not Interested
+                </button>
+
+                <!-- Contact button -->
                 <button class="contact-btn ${contact ? 'contact-true' : 'contact-false'}"
                         data-detail-id="${item.detail_id}"
                         data-contact="${contact}"
                         title="${contact ? 'Contacted' : 'Mark as contacted'}">
-                    ${contactIcon}
+                    ${contact ? '📞' : '✆'}
                 </button>
 
                 <div class="item-index">${index + 1}.</div>
@@ -130,7 +137,7 @@ function renderItems(items) {
                         ${escHtml(item.seller || '—')} | ${escHtml(item.condition || '—')} | ${escHtml(item.isbn || '—')}
                     </small><br>
                     <small class="text-muted">
-                        First Scraped At: ${item.first_seen || 'N/A'} &nbsp;|&nbsp; Updated Scraped At: ${item.date_scraped || 'N/A'}
+                        First seen: ${item.first_seen || 'N/A'} &nbsp;|&nbsp; Last scraped: ${item.date_scraped || 'N/A'}
                     </small>
                 </div>
 

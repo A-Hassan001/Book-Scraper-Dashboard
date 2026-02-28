@@ -316,17 +316,44 @@ body { display: flex; min-height: 100vh; }
 }
 
 
+
+
+.not-interested-btn {
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    transition: all 0.15s;
+}
+.not-interested-btn:hover {
+    transform: scale(1.05);
+}
+.not-interested-btn:disabled {
+    opacity: 0.4;
+    cursor: wait;
+}
+.not-interested-inactive {
+    color: #9ca3af;
+    border-color: #9ca3af;
+}
+.not-interested-active {
+    color: #ef4444;
+    border-color: #ef4444;
+    font-weight: bold;
+}
 .contact-btn {
     background: none;
     border: none;
     cursor: pointer;
     font-size: 1.2rem;
-    font-weight: bold;          /* makes icon bold */
+    font-weight: bold;
     padding: 4px 6px;
     border-radius: 4px;
     transition: transform 0.15s, opacity 0.15s;
 }
-.contact-btn:hover          { transform: scale(1.2); }
-.contact-btn:disabled       { opacity: 0.4; cursor: wait; }
-.contact-false              { color: #9ca3af; }   /* gray outline */
-.contact-true               { color: #22c55e; }   /* green filled */
+.contact-btn:hover { transform: scale(1.2); }
+.contact-btn:disabled { opacity: 0.4; cursor: wait; }
+.contact-false { color: #9ca3af; }
+.contact-true  { color: #22c55e; }

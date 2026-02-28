@@ -1,5 +1,5 @@
 /**
- * dashboard.js – main entry point (ES module)
+ * dashboard.js – main entry point
  */
 
 import { renderResults } from './renderResults.js';
@@ -7,13 +7,11 @@ import { loadStatistics } from './statistics.js';
 import { loadAnalytics } from './analytics.js';
 import { validatePrices, getPriceValues, setupPriceValidation } from './price-validation.js';
 
-/* ── Debounce ───────────────────────────────────────── */
 function debounce(fn, wait = 300) {
     let t;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
 }
 
-/* ── DOM ready ──────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
     window.openGroups = new Set();
 
@@ -27,18 +25,35 @@ document.addEventListener('DOMContentLoaded', () => {
     setupPriceValidation(loadConditions, debounce);
     setupDaysFilter();
 
-    document.getElementById('showInterested')?.addEventListener('change', applyFilters);
-    document.getElementById('hideNotInterested')?.addEventListener('change', applyFilters);
+    // Ensure mutual exclusivity of interest filters
+    const showCb = document.getElementById('showInterested');
+    const hideCb = document.getElementById('hideNotInterested');
+    if (showCb && hideCb) {
+        showCb.addEventListener('change', function() {
+            if (this.checked) hideCb.checked = false;
+            applyFilters();
+        });
+        hideCb.addEventListener('change', function() {
+            if (this.checked) showCb.checked = false;
+            renderFilteredResults(); // hide is client-side
+        });
+    }
+
+    document.getElementById('showContact')?.addEventListener('change', applyFilters);
     document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilters);
 
     wireApplyFiltersButton();
     invokeApplyFiltersWhenReady();
 
+    // Delegate clicks
     document.getElementById('resultsContainer')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.interest-btn, .contact-btn');
+        const btn = e.target.closest('.star-btn, .not-interested-btn, .contact-btn');
         if (!btn) return;
-        if (btn.classList.contains('interest-btn')) window.handleInterestClick(e, btn);
-        if (btn.classList.contains('contact-btn'))  window.handleContactClick(e, btn);
+        e.preventDefault();
+        e.stopPropagation();
+        if (btn.classList.contains('star-btn')) window.handleStarClick(btn);
+        if (btn.classList.contains('not-interested-btn')) window.handleNotInterestedClick(btn);
+        if (btn.classList.contains('contact-btn')) window.handleContactClick(btn);
     });
 
     const dateEl = document.getElementById('currentDate');
@@ -47,9 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-/* ════════════════════════════════════════════════════
-   PANEL SWITCHING
-═══════════════════════════════════════════════════════ */
 function setupPanelSwitching() {
     document.querySelectorAll('.nav-item[data-panel]').forEach(item => {
         item.addEventListener('click', (e) => {
@@ -100,9 +112,6 @@ function closeSidebar() {
     document.body.style.overflow = '';
 }
 
-/* ════════════════════════════════════════════════════
-   DAYS FILTER
-═══════════════════════════════════════════════════════ */
 function setupDaysFilter() {
     const container = document.getElementById('daysFilter');
     const hidden    = document.getElementById('daysOld');
@@ -129,9 +138,6 @@ function setupDaysFilter() {
     });
 }
 
-/* ════════════════════════════════════════════════════
-   APPLY FILTERS WIRING
-═══════════════════════════════════════════════════════ */
 function wireApplyFiltersButton() {
     const attach = () => {
         const btn = document.getElementById('applyFiltersBtn');
@@ -156,9 +162,6 @@ function invokeApplyFiltersWhenReady() {
     }, 100);
 }
 
-/* ════════════════════════════════════════════════════
-   MARKETPLACES
-═══════════════════════════════════════════════════════ */
 async function loadMarketplaces() {
     try {
         const res  = await fetch('/api/market_place_names/');
@@ -223,9 +226,6 @@ async function loadMarketplaces() {
     }
 }
 
-/* ════════════════════════════════════════════════════
-   PRICE RANGE (initial)
-═══════════════════════════════════════════════════════ */
 async function loadPriceRange() {
     try {
         const res  = await fetch('/api/price_range_of_books/');
@@ -239,9 +239,6 @@ async function loadPriceRange() {
     }
 }
 
-/* ════════════════════════════════════════════════════
-   CONDITIONS
-═══════════════════════════════════════════════════════ */
 async function loadConditions() {
     const minEl = document.getElementById('minPrice');
     const maxEl = document.getElementById('maxPrice');
@@ -275,37 +272,33 @@ function populateConditions(list) {
     });
 }
 
-/* ════════════════════════════════════════════════════
-   INTEREST & CONTACT HANDLERS
-═══════════════════════════════════════════════════════ */
-const INTEREST_NEXT = {
-    pending:        'interested',
-    interested:     'not_interested',
-    not_interested: 'pending',
-};
-const INTEREST_ICON = {
-    pending:        { html: '☆', title: 'Mark as Interested',    cls: 'interest-pending' },
-    interested:     { html: '★', title: 'Mark as Not Interested', cls: 'interest-interested' },
-    not_interested: { html: '✕', title: 'Reset to Pending',       cls: 'interest-not-interested' },
-};
-
-function handleInterestClick(e, btn) {
-    e.preventDefault();
-    e.stopPropagation();
-
+// Star handler
+function handleStarClick(btn) {
     const detailId = parseInt(btn.dataset.detailId, 10);
     const current  = btn.dataset.interest || 'pending';
-    const next     = INTEREST_NEXT[current] ?? 'pending';
+    // Toggle between interested and pending (never set to not_interested)
+    const next = current === 'interested' ? 'pending' : 'interested';
 
     if (!detailId) return;
 
-    applyInterestStyle(btn, next);
+    // Optimistic update
+    btn.dataset.interest = next;
+    updateStarButton(btn, next);
     btn.disabled = true;
 
+    // Also update the corresponding not-interested button (in the same card)
+    const card = btn.closest('a');
+    const notInterestedBtn = card?.querySelector('.not-interested-btn');
+    if (notInterestedBtn && next === 'interested') {
+        // If we just set interested, ensure not-interested is reset to pending
+        notInterestedBtn.dataset.interest = 'pending';
+        updateNotInterestedButton(notInterestedBtn, 'pending');
+    }
+
     fetch(`/api/interest/${detailId}/`, {
-        method:  'PATCH',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-        body:    JSON.stringify({ interest: next })
+        body: JSON.stringify({ interest: next })
     })
     .then(res => {
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -319,48 +312,104 @@ function handleInterestClick(e, btn) {
                 });
             });
         }
-        const showInterested = document.getElementById('showInterested')?.checked;
-        const hideNotInterested = document.getElementById('hideNotInterested')?.checked;
-        if (showInterested || hideNotInterested) {
-            renderFilteredResults();
-        } else {
-            updateInterestedBadge();
-        }
+        if (filtersActive()) renderFilteredResults();
+        else updateInterestedBadge();
         btn.disabled = false;
     })
     .catch(err => {
-        console.error('Interest update failed:', err);
-        applyInterestStyle(btn, current);
+        console.error('Star update failed:', err);
+        btn.dataset.interest = current;
+        updateStarButton(btn, current);
         btn.disabled = false;
     });
 }
 
-function applyInterestStyle(btn, interest) {
-    const cfg = INTEREST_ICON[interest] ?? INTEREST_ICON.pending;
-    btn.classList.remove('interest-pending', 'interest-interested', 'interest-not-interested');
-    btn.classList.add('interest-btn', cfg.cls);
-    btn.innerHTML = cfg.html;
-    btn.title = cfg.title;
+function updateStarButton(btn, interest) {
+    const isInterested = interest === 'interested';
+    btn.innerHTML = isInterested ? '★' : '☆';
+    btn.classList.remove('star-filled', 'star-outline');
+    btn.classList.add(isInterested ? 'star-filled' : 'star-outline');
+    btn.title = isInterested ? 'Mark as Not Interested' : 'Mark as Interested';
     btn.dataset.interest = interest;
 }
 
-function handleContactClick(e, btn) {
-    e.preventDefault();
-    e.stopPropagation();
-
+// Not Interested handler
+function handleNotInterestedClick(btn) {
     const detailId = parseInt(btn.dataset.detailId, 10);
-    const current = btn.dataset.contact === 'true';
-    const next = !current;
+    const current  = btn.dataset.interest || 'pending';
+    // Toggle between not_interested and pending (never set to interested)
+    const next = current === 'not_interested' ? 'pending' : 'not_interested';
 
     if (!detailId) return;
 
-    applyContactStyle(btn, next);
+    btn.dataset.interest = next;
+    updateNotInterestedButton(btn, next);
+    btn.disabled = true;
+
+    const card = btn.closest('a');
+    const starBtn = card?.querySelector('.star-btn');
+    if (starBtn && next === 'not_interested') {
+        // If we just set not_interested, reset star to outline
+        starBtn.dataset.interest = 'pending';
+        updateStarButton(starBtn, 'pending');
+    }
+
+    fetch(`/api/interest/${detailId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ interest: next })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    })
+    .then(() => {
+        if (window.lastResultsData) {
+            window.lastResultsData.forEach(group => {
+                (group.results || []).forEach(item => {
+                    if (item.detail_id === detailId) item.interest = next;
+                });
+            });
+        }
+        if (filtersActive()) renderFilteredResults();
+        else updateInterestedBadge();
+        btn.disabled = false;
+    })
+    .catch(err => {
+        console.error('Not Interested update failed:', err);
+        btn.dataset.interest = current;
+        updateNotInterestedButton(btn, current);
+        btn.disabled = false;
+    });
+}
+
+function updateNotInterestedButton(btn, interest) {
+    const isNotInterested = interest === 'not_interested';
+    btn.classList.remove('not-interested-active', 'not-interested-inactive');
+    btn.classList.add(isNotInterested ? 'not-interested-active' : 'not-interested-inactive');
+    btn.title = isNotInterested ? 'Reset to Pending' : 'Mark as Not Interested';
+    btn.dataset.interest = interest;
+    // Text stays "Not Interested"
+}
+
+function handleContactClick(btn) {
+    const detailId = parseInt(btn.dataset.detailId, 10);
+    const current  = btn.dataset.contact === 'true';
+    const next     = !current;
+
+    if (!detailId) return;
+
+    btn.dataset.contact = next;
+    btn.classList.remove('contact-true', 'contact-false');
+    btn.classList.add('contact-btn', next ? 'contact-true' : 'contact-false');
+    btn.innerHTML = next ? '📞' : '✆';
+    btn.title = next ? 'Contacted' : 'Mark as contacted';
     btn.disabled = true;
 
     fetch(`/api/contact/${detailId}/`, {
-        method:  'PATCH',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-        body:    JSON.stringify({ contact: next })
+        body: JSON.stringify({ contact: next })
     })
     .then(res => {
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -378,17 +427,13 @@ function handleContactClick(e, btn) {
     })
     .catch(err => {
         console.error('Contact update failed:', err);
-        applyContactStyle(btn, current);
+        btn.dataset.contact = current;
+        btn.classList.remove('contact-true', 'contact-false');
+        btn.classList.add('contact-btn', current ? 'contact-true' : 'contact-false');
+        btn.innerHTML = current ? '📞' : '✆';
+        btn.title = current ? 'Contacted' : 'Mark as contacted';
         btn.disabled = false;
     });
-}
-
-function applyContactStyle(btn, contact) {
-    btn.classList.remove('contact-true', 'contact-false');
-    btn.classList.add('contact-btn', contact ? 'contact-true' : 'contact-false');
-    btn.dataset.contact = contact;
-    btn.title = contact ? 'Contacted' : 'Mark as contacted';
-    btn.innerHTML = contact ? '📞' : '✆';
 }
 
 function getCsrfToken() {
@@ -409,24 +454,37 @@ function updateInterestedBadge() {
     if (badge) { badge.textContent = interested; badge.style.display = interested ? 'inline-flex' : 'none'; }
 }
 
-/* ════════════════════════════════════════════════════
-   RENDER FILTERED RESULTS
-═══════════════════════════════════════════════════════ */
+function filtersActive() {
+    const showInterested = document.getElementById('showInterested')?.checked;
+    const hideNotInterested = document.getElementById('hideNotInterested')?.checked;
+    const showContact = document.getElementById('showContact')?.checked;
+    return showInterested || hideNotInterested || showContact;
+}
+
 function renderFilteredResults() {
     if (!window.lastResultsData) return;
 
+    const showInterested = document.getElementById('showInterested')?.checked;
     const hideNotInterested = document.getElementById('hideNotInterested')?.checked;
+    const showContact = document.getElementById('showContact')?.checked;
 
     let dataToRender = window.lastResultsData;
 
-    if (hideNotInterested) {
-        dataToRender = window.lastResultsData
-            .map(group => {
-                const filtered = (group.results || []).filter(item => item.interest !== 'not_interested');
-                return filtered.length ? { ...group, results: filtered } : null;
-            })
-            .filter(Boolean);
-    }
+    dataToRender = window.lastResultsData
+        .map(group => {
+            let filtered = group.results || [];
+            if (showInterested) {
+                filtered = filtered.filter(item => item.interest === 'interested');
+            }
+            if (hideNotInterested) {
+                filtered = filtered.filter(item => item.interest === 'not_interested');
+            }
+            if (showContact) {
+                filtered = filtered.filter(item => item.contact === true);
+            }
+            return filtered.length ? { ...group, results: filtered } : null;
+        })
+        .filter(Boolean);
 
     const totalItems = dataToRender.reduce((acc, g) => acc + (g.results?.length || 0), 0);
     const countEl = document.getElementById('resultsCount');
@@ -437,9 +495,6 @@ function renderFilteredResults() {
     renderResults(dataToRender);
 }
 
-/* ════════════════════════════════════════════════════
-   APPLY FILTERS – main API call
-═══════════════════════════════════════════════════════ */
 export function applyFilters() {
     const params = new URLSearchParams();
 
@@ -450,19 +505,21 @@ export function applyFilters() {
     const groupBy       = document.getElementById('groupBy')?.value || 'isbn';
     const days          = document.getElementById('daysOld')?.value;
     const showInterested = document.getElementById('showInterested')?.checked;
+    const showContact   = document.getElementById('showContact')?.checked;
 
     if (marketplace)  params.append('domains',   marketplace);
     if (minPrice)     params.append('min_price',  minPrice);
     if (maxPrice)     params.append('max_price',  maxPrice);
     if (condition)    params.append('condition',  condition);
     if (groupBy)      params.append('group_by',   groupBy);
-
     if (days && days !== 'all' && !isNaN(parseInt(days, 10))) {
         params.append('days_old', days);
     }
-
     if (showInterested) {
         params.append('interest', 'interested');
+    }
+    if (showContact) {
+        params.append('contact', 'true');
     }
 
     const container = document.getElementById('resultsContainer');
@@ -488,11 +545,7 @@ export function applyFilters() {
         });
 }
 
-/* ════════════════════════════════════════════════════
-   RESET FILTERS
-═══════════════════════════════════════════════════════ */
 function resetFilters() {
-    // Clear input fields
     document.getElementById('minPrice').value = '';
     document.getElementById('maxPrice').value = '';
     document.getElementById('minPrice').style.borderColor = '';
@@ -502,23 +555,21 @@ function resetFilters() {
     document.getElementById('daysOld').value = '30';
     document.getElementById('marketplace').value = '';
 
-    // Uncheck checkboxes
     document.getElementById('showInterested').checked = false;
     document.getElementById('hideNotInterested').checked = false;
+    document.getElementById('showContact').checked = false;
     document.querySelectorAll('#marketplaceContainer input[type="checkbox"]').forEach(cb => cb.checked = false);
 
-    // Reset days filter active state
     document.querySelectorAll('.day-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.days === '30');
     });
 
-    // Re-apply filters
     applyFilters();
 }
 
-
-// Expose handlers globally
-window.handleInterestClick = handleInterestClick;
+// Expose globally
+window.handleStarClick = handleStarClick;
+window.handleNotInterestedClick = handleNotInterestedClick;
 window.handleContactClick = handleContactClick;
 window.applyFilters = applyFilters;
 window.switchPanel = switchPanel;
