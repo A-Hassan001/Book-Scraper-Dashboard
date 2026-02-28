@@ -8,42 +8,71 @@ from .models import Source, History, Detail
 
 
 def get_details(request: Request):
-    if domains := request.GET.get('domains', ''):
+    """
+    Returns a (detail_qs, history_qs) tuple filtered by all active query params:
+        domains      — comma-separated spider_name values
+        min_price    — float
+        max_price    — float
+        condition    — comma-separated condition strings, or "All"
+        days_old     — integer  (1 = today only; >1 = within last N days)
+        interest     — "pending" | "interested" | "not_interested"  (optional)
+    """
+    # ── Domain / source filter ─────────────────────────────────────────────
+    if domains := request.GET.get("domains", ""):
         query = Q()
-        for domain in domains.split(',') if domains else []:
+        for domain in domains.split(","):
             query |= Q(spider_name=domain)
-
-        ids = Source.objects.filter(query).values_list('spider_id', flat=True)
+        ids = Source.objects.filter(query).values_list("spider_id", flat=True)
     else:
-        ids = Source.objects.all().values_list('spider_id', flat=True)
+        ids = Source.objects.all().values_list("spider_id", flat=True)
 
     history = History.objects.filter(site_id__in=ids)
-    detail = Detail.objects.filter(history_id__in=history.values_list('history_id', flat=True))
+    detail  = Detail.objects.filter(
+        history_id__in=history.values_list("history_id", flat=True)
+    )
 
-    if price := request.GET.get('min_price', None):
-        detail = detail.filter(price__gte=float(price))
+    # ── Price filters ──────────────────────────────────────────────────────
+    if min_price := request.GET.get("min_price", None):
+        detail = detail.filter(price__gte=float(min_price))
 
-    if price := request.GET.get('max_price', None):
-        detail = detail.filter(price__lte=float(price))
+    if max_price := request.GET.get("max_price", None):
+        detail = detail.filter(price__lte=float(max_price))
 
-    if conditions := request.GET.get('condition', ''):
-        if conditions != 'All':
+    # ── Condition filter ───────────────────────────────────────────────────
+    if conditions := request.GET.get("condition", ""):
+        if conditions != "All":
             query = Q()
-            for condition in conditions.split(',') if conditions else []:
+            for condition in conditions.split(","):
                 query |= Q(condition=condition)
-
             detail = detail.filter(query)
 
-    if (days_old := request.GET.get('days_old')) is not None:
-        days_old = int(days_old)
+    # ── Days-old / first_seen filter ───────────────────────────────────────
+    if (days_old_raw := request.GET.get("days_old")) is not None:
+        days_old    = int(days_old_raw)
         cutoff_date = timezone.now().date() - timedelta(days=days_old)
         if days_old == 1:
-            # For "1 day", we want only today's books
-            detail = detail.filter(date_scraped=cutoff_date + timedelta(days=1))  # which is today
+            # "1 day" → only books first seen today
+            detail = detail.filter(first_seen=cutoff_date + timedelta(days=1))
         else:
-            detail = detail.filter(date_scraped__gte=cutoff_date)
+            detail = detail.filter(first_seen__gte=cutoff_date)
 
-    # print("days_old:", request.GET.get('days_old'))
-    # print(detail.query)
-    # print(f'\nTotal results agsinst filter: {detail.count()} / Date results: {detail}\n\n')
+    # ── Interest filter (optional) ─────────────────────────────────────────
+    # Pass ?interest=interested | not_interested | pending to narrow results.
+    # Omit the param (or leave it empty) to return all records regardless of flag.
+    if interest := request.GET.get("interest", ""):
+        valid = {Detail.PENDING, Detail.INTERESTED, Detail.NOT_INTERESTED}
+        if interest in valid:
+            detail = detail.filter(interest=interest)
+
     return detail, history
+
+
+def update_interest(detail_id: int, interest_value: str) -> Detail:
+    """
+    Atomically update the interest flag for a single Detail row.
+    Raises Detail.DoesNotExist if the row is not found.
+    """
+    detail = Detail.objects.get(pk=detail_id)
+    detail.interest = interest_value
+    detail.save(update_fields=["interest"])
+    return detail

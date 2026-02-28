@@ -1,40 +1,58 @@
-const minInput = document.getElementById('minPrice');
-const maxInput = document.getElementById('maxPrice');
+/**
+ * price-validation.js
+ * Exports validation functions for min/max price inputs.
+ */
 
-function showNotification(message) {
-  alert(message);
+export function validatePrices(minEl, maxEl) {
+    let min = parseFloat(minEl.value);
+    let max = parseFloat(maxEl.value);
+
+    if (!isNaN(min) && min < 0) { minEl.value = 0; min = 0; }
+    if (!isNaN(max) && max < 0) { maxEl.value = 0; max = 0; }
+
+    const bothNonEmpty = minEl.value !== '' && maxEl.value !== '';
+    if (bothNonEmpty && !isNaN(min) && !isNaN(max) && min >= max) {
+        minEl.style.borderColor = '#ef4444';
+        maxEl.style.borderColor = '#ef4444';
+    } else {
+        minEl.style.borderColor = '';
+        maxEl.style.borderColor = '';
+    }
 }
 
-minInput.addEventListener('input', () => {
-  let min = parseFloat(minInput.value);
-  let max = parseFloat(maxInput.value);
+export function getPriceValues(minEl, maxEl) {
+    const min = parseFloat(minEl?.value);
+    const max = parseFloat(maxEl?.value);
+    const hasMin = !Number.isNaN(min);
+    const hasMax = !Number.isNaN(max);
 
-  // Clamp negatives
-  if (!isNaN(min) && min < 0) {
-    minInput.value = 0;
-    min = 0;
-  }
+    if (hasMin && hasMax && (min < 0 || max < 0 || min >= max)) return null;
 
-  // Enforce min < max when both present
-  if (maxInput.value !== '' && !isNaN(min) && !isNaN(max) && min >= max) {
-    showNotification('Minimum price must be less than maximum price!');
-    minInput.value = Math.max(0, max - 1);
-  }
-});
+    const out = {};
+    if (hasMin && min >= 0) out.min = min;
+    if (hasMax && max >= 0) out.max = max;
+    return Object.keys(out).length ? out : null;
+}
 
-maxInput.addEventListener('input', () => {
-  let min = parseFloat(minInput.value);
-  let max = parseFloat(maxInput.value);
+export function setupPriceValidation(onPriceChange, debounceFn) {
+    const minEl = document.getElementById('minPrice');
+    const maxEl = document.getElementById('maxPrice');
+    if (!minEl || !maxEl) return;
 
-  // Clamp negatives
-  if (!isNaN(max) && max < 0) {
-    maxInput.value = 0;
-    max = 0;
-  }
+    const debouncedReload = debounceFn(() => {
+        const prices = getPriceValues(minEl, maxEl);
+        if (prices !== null || (minEl.value === '' && maxEl.value === '')) {
+            onPriceChange();
+        }
+    }, 400);
 
-  // Enforce max > min when both present
-  if (minInput.value !== '' && !isNaN(min) && !isNaN(max) && max <= min) {
-    showNotification('Maximum price must be greater than minimum price!');
-    maxInput.value = min + 1;
-  }
-});
+    minEl.addEventListener('input', () => {
+        validatePrices(minEl, maxEl);
+        debouncedReload();
+    });
+
+    maxEl.addEventListener('input', () => {
+        validatePrices(minEl, maxEl);
+        debouncedReload();
+    });
+}
