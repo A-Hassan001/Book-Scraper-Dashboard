@@ -16,7 +16,6 @@ def read_txt_file(file_name='search_terms.txt') -> str:
     except Exception as e:
         return ''
 
-
 class SequentialRunner:
     def __init__(self):
         self.process = CrawlerProcess(get_project_settings())
